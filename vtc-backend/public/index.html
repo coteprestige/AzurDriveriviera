@@ -126,6 +126,16 @@
     display:block;font-size:0.76rem;font-weight:600;letter-spacing:0.04em;
     text-transform:uppercase;color:var(--indigo-light);margin-bottom:6px;
   }
+  .depart-row{display:flex;gap:8px;}
+  .depart-row input{flex:1;}
+  .geo-btn{
+    flex:0 0 auto;width:44px;border:1.5px solid rgba(255,255,255,0.12);border-radius:9px;
+    background:rgba(255,255,255,0.03);font-size:1.1rem;cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .geo-btn:hover{border-color:var(--indigo);background:rgba(106,91,255,0.1);}
+  .geo-btn:disabled{opacity:0.5;cursor:wait;}
+  .geo-status{font-size:0.76rem;color:var(--gray);margin-top:6px;min-height:1em;}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
   input,select{
     width:100%;padding:11px 13px;border:1.5px solid rgba(255,255,255,0.12);border-radius:9px;
@@ -272,7 +282,11 @@
     <form id="bookingFormEl">
       <div class="field">
         <label for="depart">Départ</label>
-        <input type="text" id="depart" placeholder="Ex : Aéroport Nice Côte d'Azur" required>
+        <div class="depart-row">
+          <input type="text" id="depart" placeholder="Ex : Aéroport Nice Côte d'Azur" required>
+          <button type="button" id="geoBtn" class="geo-btn" title="Utiliser ma position actuelle">📍</button>
+        </div>
+        <p id="geoStatus" class="geo-status"></p>
       </div>
       <div class="field">
         <label for="arrivee">Destination</label>
@@ -489,6 +503,47 @@
     });
   }
   renderVehiclePicker();
+
+  // Géolocalisation : remplit le champ Départ avec la position actuelle du client
+  const geoBtn = document.getElementById('geoBtn');
+  const geoStatus = document.getElementById('geoStatus');
+  const departInput = document.getElementById('depart');
+
+  geoBtn.addEventListener('click', function () {
+    if (!navigator.geolocation) {
+      geoStatus.textContent = "La géolocalisation n'est pas disponible sur cet appareil.";
+      return;
+    }
+
+    geoBtn.disabled = true;
+    geoStatus.textContent = 'Localisation en cours...';
+
+    navigator.geolocation.getCurrentPosition(
+      async function (position) {
+        const { latitude, longitude } = position.coords;
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/reverse-geocode`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lat: latitude, lng: longitude }),
+          });
+          const result = await res.json();
+          if (!res.ok) throw new Error(result.error || 'Adresse introuvable.');
+
+          departInput.value = result.address;
+          geoStatus.textContent = '✓ Position détectée';
+        } catch (err) {
+          geoStatus.textContent = err.message || "Impossible de récupérer votre adresse.";
+        } finally {
+          geoBtn.disabled = false;
+        }
+      },
+      function () {
+        geoStatus.textContent = "Localisation refusée ou indisponible. Merci de saisir l'adresse manuellement.";
+        geoBtn.disabled = false;
+      }
+    );
+  });
 
   function getFormData() {
     return {
