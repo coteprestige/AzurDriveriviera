@@ -98,6 +98,34 @@ app.post('/api/reverse-geocode', async (req, res) => {
   }
 });
 
+// ---------- POST /api/autocomplete ----------
+// Renvoie des suggestions d'adresses pendant que le client tape.
+// body: { input: "aeropo" }
+app.post('/api/autocomplete', async (req, res) => {
+  try {
+    const { input } = req.body;
+    if (!input || input.length < 3) {
+      return res.json({ suggestions: [] });
+    }
+
+    const params = new URLSearchParams({
+      input,
+      key: GOOGLE_MAPS_API_KEY,
+      language: 'fr',
+      components: 'country:fr',
+    });
+
+    const response = await fetch(`https://maps.googleapis.com/maps/api/place/autocomplete/json?${params}`);
+    const data = await response.json();
+
+    const suggestions = (data?.predictions || []).map((p) => p.description);
+    res.json({ suggestions });
+  } catch (err) {
+    console.error('Erreur /api/autocomplete', err);
+    res.json({ suggestions: [] }); // on n'affiche pas d'erreur bloquante pour de simples suggestions
+  }
+});
+
 // ---------- POST /api/fare ----------
 // body: { depart: "adresse", arrivee: "adresse", date: "2026-07-20", heure: "14:30" }
 app.post('/api/fare', async (req, res) => {
