@@ -136,6 +136,17 @@
   .geo-btn:hover{border-color:var(--indigo);background:rgba(106,91,255,0.1);}
   .geo-btn:disabled{opacity:0.5;cursor:wait;}
   .geo-status{font-size:0.76rem;color:var(--gray);margin-top:6px;min-height:1em;}
+  .suggestions{
+    position:absolute;top:100%;left:0;right:0;z-index:20;
+    background:var(--bg-soft);border:1.5px solid rgba(106,91,255,0.3);border-radius:9px;
+    margin-top:4px;list-style:none;padding:4px;display:none;
+    max-height:220px;overflow-y:auto;
+  }
+  .suggestions.open{display:block;}
+  .suggestions li{
+    padding:10px 12px;font-size:0.9rem;color:var(--off);border-radius:6px;cursor:pointer;
+  }
+  .suggestions li:hover{background:rgba(106,91,255,0.15);}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
   input,select{
     width:100%;padding:11px 13px;border:1.5px solid rgba(255,255,255,0.12);border-radius:9px;
@@ -280,17 +291,19 @@
     <h3>Estimez et réservez votre trajet</h3>
     <p class="sub">Choisissez votre gamme de véhicule, calculez le prix et payez en ligne.</p>
     <form id="bookingFormEl">
-      <div class="field">
+      <div class="field" style="position:relative;">
         <label for="depart">Départ</label>
         <div class="depart-row">
-          <input type="text" id="depart" placeholder="Ex : Aéroport Nice Côte d'Azur" required>
+          <input type="text" id="depart" placeholder="Ex : Aéroport Nice Côte d'Azur" autocomplete="off" required>
           <button type="button" id="geoBtn" class="geo-btn" title="Utiliser ma position actuelle">📍</button>
         </div>
         <p id="geoStatus" class="geo-status"></p>
+        <ul class="suggestions" id="departSuggestions"></ul>
       </div>
-      <div class="field">
+      <div class="field" style="position:relative;">
         <label for="arrivee">Destination</label>
-        <input type="text" id="arrivee" placeholder="Ex : Cannes, Palm Beach" required>
+        <input type="text" id="arrivee" placeholder="Ex : Cannes, Palm Beach" autocomplete="off" required>
+        <ul class="suggestions" id="arriveeSuggestions"></ul>
       </div>
       <div class="row2">
         <div class="field">
@@ -544,6 +557,63 @@
       }
     );
   });
+
+  // Suggestions d'adresses pendant la saisie (autocomplete)
+  function setupAutocomplete(inputEl, listEl) {
+    let debounceTimer = null;
+
+    inputEl.addEventListener('input', function () {
+      clearTimeout(debounceTimer);
+      const value = inputEl.value.trim();
+
+      if (value.length < 3) {
+        listEl.classList.remove('open');
+        listEl.innerHTML = '';
+        return;
+      }
+
+      debounceTimer = setTimeout(async () => {
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/autocomplete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ input: value }),
+          });
+          const result = await res.json();
+          const suggestions = result.suggestions || [];
+
+          if (suggestions.length === 0) {
+            listEl.classList.remove('open');
+            listEl.innerHTML = '';
+            return;
+          }
+
+          listEl.innerHTML = suggestions.map((s) => `<li>${s}</li>`).join('');
+          listEl.classList.add('open');
+        } catch (err) {
+          listEl.classList.remove('open');
+        }
+      }, 300); // attend 300ms après la dernière frappe avant d'appeler l'API
+    });
+
+    listEl.addEventListener('click', function (e) {
+      if (e.target.tagName === 'LI') {
+        inputEl.value = e.target.textContent;
+        listEl.classList.remove('open');
+        listEl.innerHTML = '';
+      }
+    });
+
+    // Ferme la liste si le client clique ailleurs sur la page
+    document.addEventListener('click', function (e) {
+      if (e.target !== inputEl) {
+        listEl.classList.remove('open');
+      }
+    });
+  }
+
+  setupAutocomplete(departInput, document.getElementById('departSuggestions'));
+  setupAutocomplete(document.getElementById('arrivee'), document.getElementById('arriveeSuggestions'));
 
   function getFormData() {
     return {
